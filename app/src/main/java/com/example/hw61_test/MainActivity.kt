@@ -50,6 +50,10 @@ import java.util.Locale
 import kotlin.coroutines.resumeWithException
 import android.location.Location
 import androidx.annotation.RequiresPermission
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 class MainActivity : ComponentActivity() {
@@ -126,8 +130,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
-
 //@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun MainScreen(modifier: Modifier = Modifier) {
@@ -200,40 +202,47 @@ fun MainScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    Box(
-        modifier = modifier.fillMaxSize()
-    ) {
+
+    val coroutineScope = rememberCoroutineScope()
+
+    Box(modifier = modifier.fillMaxSize()) {
         if (hasLocationPermission) {
-            // If we have permission, display the map.
             GoogleMap(
                 modifier = Modifier.matchParentSize(),
                 cameraPositionState = cameraPositionState,
                 onMapClick = { latLng ->
-                    // When user taps on the map, add a custom marker.
+                    // Add custom marker
                     customMarkers.add(latLng)
+                    // Asynchronous reverse geocoding
+                    coroutineScope.launch {
+                        val newAddr = withContext(Dispatchers.IO) {
+                            getAddressFromLocation(context, latLng.latitude, latLng.longitude)
+                        }
+                        addressInfo = newAddr
+                    }
                 }
             ) {
-                // If we know the user's location, place a marker there.
+                // User's current location marker
                 userLocation?.let { loc ->
                     Marker(
                         state = MarkerState(position = loc),
                         title = "You Are Here",
-                        snippet = addressInfo, // We can show the address info here
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                        snippet = addressInfo,
+                        icon = BitmapDescriptorFactory.defaultMarker(
+                            BitmapDescriptorFactory.HUE_AZURE
+                        )
                     )
                 }
-
-                // Draw all custom markers that the user placed.
-                for (markerPos in customMarkers) {
+                // Custom markers placed by user taps
+                customMarkers.forEach { pos ->
                     Marker(
-                        state = MarkerState(position = markerPos),
+                        state = MarkerState(position = pos),
                         title = "Custom Marker",
-                        snippet = "Lat: ${markerPos.latitude}, Lng: ${markerPos.longitude}"
+                        snippet = "Lat: ${pos.latitude}, Lng: ${pos.longitude}"
                     )
                 }
             }
         } else {
-            // If no permission, show a simple message
             Text(
                 text = "Location permission is required to show the map.",
                 style = MaterialTheme.typography.bodyLarge,
@@ -241,8 +250,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
             )
         }
 
-        // Display the current address info (or a default message).
-        // This can be placed anywhere in the UI; here we just put it at the bottom center.
+        // Display address at the bottom
         Text(
             text = addressInfo,
             style = MaterialTheme.typography.bodyLarge,
@@ -297,8 +305,6 @@ suspend fun FusedLocationProviderClient.awaitLocation(): Location? {
 }
 
 
-
-
 @Composable
 fun MapScreen() {
     val atasehir = LatLng(40.9971, 29.1007)
@@ -310,4 +316,3 @@ fun MapScreen() {
         cameraPositionState = cameraPositionState
     )
 }
-
